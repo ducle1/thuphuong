@@ -132,3 +132,8 @@ td.q { overflow-wrap: anywhere; }
   .p-actions { flex-wrap: wrap; }
   .danger-zone input { min-width: 0; flex: 1; }
 }
+
+table.order { table-layout: fixed; min-width: 760px; }
+table.order tr.filler td { background: #fafaf8; }
+table.order .kw { color: var(--accent); }
+table.order .qline { font-size: 12px; margin-top: 4px; color: #6b4400; }

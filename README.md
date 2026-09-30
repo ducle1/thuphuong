@@ -101,6 +101,8 @@ Thay đổi chỉ áp dụng cho người **mới**; ai đã bắt đầu giữ 
 | `ABANDON_MINUTES` | 30 | im lặng quá N phút → coi là bỏ dở, nhường chỗ |
 | `DISPLAY_MODE` | `moving_window` | hoặc `center` |
 | `MAX_CONSECUTIVE_WORD` / `MAX_CONSECUTIVE` | `totally` / 2 | ràng buộc xáo trộn |
+| `ORDER_MODE` | `fixed` | `fixed` = mọi người cùng 1 thứ tự (A/B song song); `random` = mỗi người ngẫu nhiên riêng |
+| `ORDER_SEED` | `spr-order-1` | đổi chuỗi này → ra thứ tự cố định khác |
 | `REQUIRE_KEYBOARD` | false | `true` = chặn điện thoại/máy tính bảng, chỉ cho làm bằng bàn phím |
 | `COMPLETION_URL` | — | link chuyển về khi xong (vd. Prolific) |
 | `TIMEZONE` | `Asia/Ho_Chi_Minh` | múi giờ hiển thị trong admin |
@@ -114,7 +116,8 @@ Link có `?PROLIFIC_PID=…` (hoặc `?pid=…`) sẽ được lưu vào cột `
 
 - **ID + nhóm cố định**: vào trang là có ID. Nhận diện bằng 2 lớp: cookie `spr_pid` (1 năm) và cookie phiên `spr_sess` gắn với bảng `sessions` trên server. Mất 1 trong 2 vẫn nhận ra và tự khôi phục cái còn lại.
 - **Chia nhóm** khi bắt đầu, **cân bằng A/B riêng cho từng thiết bị** (máy tính / điện thoại): trong mỗi thiết bị, vào nhóm có (hoàn thành + đang làm) ít hơn → hoà thì nhóm ít hoàn thành hơn → hoà nữa thì giữ tổng A/B cân bằng → cuối cùng lẻ A, chẵn B. Thiết bị lúc chia nhóm được lưu cố định ở cột `device`. Dùng khoá của Postgres (`pg_advisory_xact_lock`) nên nhiều người bắt đầu cùng lúc vẫn chia đều (đã thử 100 người đồng thời: 60 máy tính + 40 điện thoại → 30/30 và 20/20). `TARGET_PER_GROUP` tính trên tổng số người hoàn thành của mỗi nhóm.
-- **56 câu/người**: 28 câu của nhóm + 28 filler, xáo trộn, **không quá 2 câu "totally" liền nhau**. 10 câu hỏi kiểm tra Yes/No bắt buộc.
+- **56 câu/người**: 28 câu của nhóm + 28 filler, xen kẽ, **không quá 2 câu "totally" liền nhau**. 10 câu hỏi kiểm tra Yes/No bắt buộc.
+- **Thứ tự câu cố định** (mặc định): mọi người trong cùng nhóm thấy **cùng một thứ tự**, và nhóm A với B **song song** — filler giống hệt nhau ở cùng vị trí, câu cùng Types of environment ở cùng vị trí, câu hỏi kiểm tra của A và B cũng ở cùng vị trí. Xem/tải thứ tự ở admin → **Thứ tự câu**. Đổi sang một thứ tự cố định khác: đặt `ORDER_SEED`; quay lại kiểu mỗi người ngẫu nhiên riêng: `ORDER_MODE=random`.
 - **Thời gian mỗi từ** đo ngay trong trình duyệt (`performance.now()`), nên tốc độ mạng hay độ trễ server **không ảnh hưởng** tới số ms.
 - **Thoát giữa chừng** → mở lại link, tiếp tục đúng câu đang dở (đọc lại câu đó từ đầu, admin đánh dấu "đọc lại").
 - **Admin** `/admin`: cân bằng A/B, bảng ms/từ theo Types of environment × nhóm, danh sách người tham gia với % đúng, chi tiết từng người (sắp theo Types of environment, ms dưới từng từ), Loại/Khôi phục/Xoá, xuất CSV (theo từ / theo câu / theo người).

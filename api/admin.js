@@ -4,7 +4,7 @@ import {
   parseUrl, parseCookies, setCookie, readBody, sendHtml, redirect, sendDownload,
   h, sign, safeEqual, fmtLocal, durationStr, toIso,
 } from '../lib/http.js';
-import { groupCounts, chooseGroup, splitWords, DEVICES } from '../lib/experiment.js';
+import { groupCounts, chooseGroup, splitWords, DEVICES, buildOrder } from '../lib/experiment.js';
 
 const ADMIN_COOKIE = 'spr_admin';
 const ADMIN_HOURS = 12;
@@ -107,6 +107,9 @@ export default async function handler(req, res) {
     if (exp) return exportCsv(req, res, exp);
 
     // ----- trang
+    if (url.searchParams.get('view') === 'order') {
+      return sendHtml(res, 200, viewOrder(csrf));
+    }
     if (url.searchParams.get('view') === 'p') {
       return sendHtml(res, 200, await viewParticipant(Number(url.searchParams.get('id') || 0), csrf));
     }
@@ -127,19 +130,21 @@ function layout(title, loggedIn, content, csrf = '') {
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="robots" content="noindex">
 <title>${h(title)} · SPR Admin</title>
-<link rel="stylesheet" href="/assets/admin.css?v=6">
+<link rel="stylesheet" href="/assets/admin.css?v=7">
 </head>
 <body>
 ${loggedIn ? `<header class="top">
   <a class="brand" href="/admin">SPR Admin</a>
   <nav>
     <a href="/admin">Tổng quan</a>
+    <a href="/admin?view=order">Thứ tự câu</a>
     <span class="dd">
       <a href="#" onclick="return false">Xuất CSV ▾</a>
       <span class="dd-menu">
         <a href="/admin?export=words">Theo từng từ (long format)</a>
         <a href="/admin?export=trials">Theo từng câu</a>
         <a href="/admin?export=participants">Theo người tham gia</a>
+        <a href="/admin?export=order">Thứ tự câu A/B</a>
       </span>
     </span>
     <form method="post" action="/admin" class="inline">
@@ -474,6 +479,40 @@ function deviceBadge(device, input = null) {
   return '<span class="muted">—</span>';
 }
 
+/* ------------------------------------------------------------ order */
+
+function viewOrder(csrf) {
+  const A = buildOrder('A'), B = buildOrder('B');
+  const word = config.maxConsecutiveWord;
+  const esc = word.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const mark = (sentence) => h(sentence).replace(new RegExp(`\\b(${esc})\\b`, 'gi'), '<b class="kw">$1</b>');
+  const cell = (it) => (it ? `<div>${mark(it.sentence)}</div><div class="tiny mono">${h(it.item_id)}</div>${it.question
+    ? `<div class="qline">❓ ${h(it.question)} <b>(${h(cap(it.correct_answer))})</b></div>` : ''}` : '<span class="muted">—</span>');
+  const rows = [];
+  for (let i = 0; i < Math.max(A.length, B.length); i++) {
+    const a = A[i], b = B[i];
+    const filler = a?.is_filler && b?.is_filler && a.item_id === b.item_id;
+    rows.push(`<tr class="static${filler ? ' filler' : ''}">
+      <td class="r mono muted">${i + 1}</td>
+      <td class="tiny">${h((a || b).type)}</td>
+      ${filler ? `<td colspan="2">${cell(a)}<div class="tiny muted">(filler — giống nhau ở cả 2 nhóm)</div></td>` : `<td>${cell(a)}</td><td>${cell(b)}</td>`}
+    </tr>`);
+  }
+  const fixed = config.orderMode === 'fixed';
+  return layout('Thứ tự câu', true, `
+    <h1>Thứ tự câu hiển thị</h1>
+    <p class="note">${fixed
+    ? `Chế độ <b>thứ tự cố định</b>: mọi người trong cùng nhóm thấy đúng thứ tự dưới đây. Nhóm A và B song song — filler, loại câu và câu hỏi kiểm tra ở cùng vị trí. Không quá ${config.maxConsecutive} câu có “${h(word)}” liền nhau. Muốn đổi sang một thứ tự cố định khác: đặt biến <code>ORDER_SEED</code> (hiện tại: <code>${h(config.orderSeed)}</code>) rồi Redeploy.`
+    : 'Chế độ <b>ngẫu nhiên từng người</b> (<code>ORDER_MODE=random</code>): mỗi người một thứ tự riêng. Bảng dưới chỉ là một ví dụ.'}
+    Người đã bắt đầu trước khi đổi thứ tự vẫn giữ thứ tự cũ của họ.</p>
+    <p><a href="/admin?export=order">Tải thứ tự (CSV)</a></p>
+    <div class="table-wrap"><table class="list order">
+      <colgroup><col style="width:44px"><col style="width:170px"><col><col></colgroup>
+      <thead><tr><th class="r">#</th><th>Types of environment</th><th>Nhóm A</th><th>Nhóm B</th></tr></thead>
+      <tbody>${rows.join('')}</tbody>
+    </table></div>`, csrf);
+}
+
 const cap = (s) => (s ? s[0].toUpperCase() + s.slice(1) : '');
 
 /* ---------------------------------------------------------- export */
@@ -486,13 +525,23 @@ function csvCell(v) {
 const csvRow = (arr) => arr.map(csvCell).join(',') + '\r\n';
 
 async function exportCsv(req, res, kind) {
-  const names = { words: 'spr_words', trials: 'spr_trials', participants: 'spr_participants' };
+  const names = { words: 'spr_words', trials: 'spr_trials', participants: 'spr_participants', order: 'spr_order' };
   if (!names[kind]) return sendHtml(res, 400, 'Loại export không hợp lệ');
   const stamp = new Date().toISOString().slice(0, 19).replace(/[-:T]/g, '').replace(/^(\d{8})/, '$1_');
   const filename = `${names[kind]}_${stamp}.csv`;
   const pcols = ['participant', 'group', 'device', 'input_mode', 'status', 'excluded', 'age', 'city', 'state', 'country', 'external_id'];
   const pvals = (p) => [p.code, p.grp, p.device, p.input_mode, p.status, p.excluded, p.age, p.city, p.state, p.country, p.external_id];
   let out = '﻿';
+
+  if (kind === 'order') {
+    const A = buildOrder('A'), B = buildOrder('B');
+    out += csvRow(['position', 'env_type', 'is_filler', 'item_id_A', 'sentence_A', 'question_A', 'correct_A', 'item_id_B', 'sentence_B', 'question_B', 'correct_B']);
+    for (let i = 0; i < Math.max(A.length, B.length); i++) {
+      const a = A[i] || {}, b = B[i] || {};
+      out += csvRow([i + 1, a.type || b.type, a.is_filler ?? b.is_filler, a.item_id, a.sentence, a.question, a.correct_answer, b.item_id, b.sentence, b.question, b.correct_answer]);
+    }
+    return sendDownload(req, res, filename, 'text/csv; charset=utf-8', out);
+  }
 
   if (kind === 'participants') {
     out += csvRow([...pcols, 'sentences_done', 'sentences_total', 'questions_answered', 'questions_correct', 'accuracy_pct',
