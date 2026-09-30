@@ -113,3 +113,8 @@ td.q { overflow-wrap: anywhere; }
 .login input { display: block; width: 100%; margin: 6px 0 14px; padding: 10px 12px; font: inherit; border: 1px solid #cfcfc9; border-radius: 7px; }
 .login .btn { width: 100%; padding: 11px; }
 .err { color: var(--bad); background: var(--bad-bg); padding: 8px 10px; border-radius: 6px; }
+
+.danger-zone { border-color: #efc9c5; }
+.danger-zone p { margin: 0 0 12px; }
+.danger-zone form { display: flex; gap: 8px; flex-wrap: wrap; }
+.danger-zone input { font: inherit; padding: 8px 10px; border: 1px solid #cfcfc9; border-radius: 7px; min-width: 220px; }

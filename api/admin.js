@@ -78,6 +78,27 @@ export default async function handler(req, res) {
         await q('DELETE FROM participants WHERE id = $1', [id]);   // trials + sessions xoá theo (CASCADE)
         return redirect(res, '/admin');
       }
+      if (body.do === 'reset_one') {
+        // Giữ ID/cookie, xoá bài làm → người này làm lại từ đầu (chia nhóm lại)
+        await q('DELETE FROM trials WHERE participant_id = $1', [id]);
+        await q(`UPDATE participants SET grp = NULL, assign_seq = NULL, status = 'new', demo_status = NULL,
+                   age = NULL, city = NULL, state = NULL, country = NULL, assigned_at = NULL, completed_at = NULL
+                 WHERE id = $1`, [id]);
+        return redirect(res, `/admin?view=p&id=${id}`);
+      }
+      if (body.do === 'reset_all') {
+        if (String(body.confirm || '').trim().toUpperCase() !== 'RESET') {
+          return sendHtml(res, 400, layout('Chưa reset', true, '<div class="panel"><h1>Chưa reset</h1><p>Bạn cần gõ đúng chữ <b>RESET</b> để xác nhận.</p><p><a href="/admin">← Quay lại</a></p></div>', csrf));
+        }
+        await q('TRUNCATE participants, trials, sessions RESTART IDENTITY CASCADE');
+        return redirect(res, '/admin');
+      }
+      if (body.do === 'test_as_new') {
+        // Xoá cookie người tham gia trên trình duyệt này → vào trang chính như người mới
+        setCookie(req, res, 'spr_pid', '', { maxAge: 0 });
+        setCookie(req, res, 'spr_sess', '', { maxAge: 0 });
+        return redirect(res, '/');
+      }
       return redirect(res, '/admin');
     }
 
@@ -106,7 +127,7 @@ function layout(title, loggedIn, content, csrf = '') {
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="robots" content="noindex">
 <title>${h(title)} · SPR Admin</title>
-<link rel="stylesheet" href="/assets/admin.css?v=4">
+<link rel="stylesheet" href="/assets/admin.css?v=5">
 </head>
 <body>
 ${loggedIn ? `<header class="top">
@@ -121,6 +142,10 @@ ${loggedIn ? `<header class="top">
         <a href="/admin?export=participants">Theo người tham gia</a>
       </span>
     </span>
+    <form method="post" action="/admin" class="inline">
+      <input type="hidden" name="csrf" value="${h(csrf)}">
+      <button name="do" value="test_as_new" class="link" title="Xoá ID trên trình duyệt này và mở bài test như người mới">Làm thử như người mới</button>
+    </form>
     <form method="post" action="/admin" class="inline">
       <input type="hidden" name="csrf" value="${h(csrf)}">
       <button name="do" value="logout" class="link">Đăng xuất</button>
@@ -249,6 +274,16 @@ async function viewHome(url, csrf) {
       </tr></thead>
       <tbody>${trs || '<tr><td colspan="11" class="empty">Chưa có dữ liệu.</td></tr>'}</tbody>
     </table>
+    </div>
+
+    <h2>Reset bài test</h2>
+    <div class="panel danger-zone">
+      <p><b>Xoá toàn bộ người tham gia và dữ liệu</b>, đưa bộ đếm nhóm A/B về 0. Dùng sau khi chạy thử, trước khi gửi link thật. <b>Không thể hoàn tác</b> — hãy xuất CSV trước nếu cần giữ lại.</p>
+      <form method="post" action="/admin" onsubmit="return confirm('Xoá TOÀN BỘ dữ liệu? Không thể hoàn tác.')">
+        <input type="hidden" name="csrf" value="${h(csrf)}">
+        <input type="text" name="confirm" placeholder="Gõ RESET để xác nhận" autocomplete="off" required>
+        <button class="btn danger" name="do" value="reset_all">Reset toàn bộ</button>
+      </form>
     </div>`, csrf);
 }
 
@@ -370,6 +405,10 @@ async function viewParticipant(id, csrf) {
           ${p.excluded
     ? '<button class="btn" name="do" value="include">Khôi phục vào phân tích</button>'
     : '<button class="btn" name="do" value="exclude" title="Không tính vào cân bằng nhóm và bảng tổng hợp">Loại khỏi phân tích</button>'}
+        </form>
+        <form method="post" action="/admin" class="inline" onsubmit="return confirm('Xoá bài làm của ${h(p.code)} để người này làm lại từ đầu (chia nhóm lại)?')">
+          <input type="hidden" name="csrf" value="${h(csrf)}"><input type="hidden" name="id" value="${p.id}">
+          <button class="btn" name="do" value="reset_one">Cho làm lại</button>
         </form>
         <form method="post" action="/admin" class="inline" onsubmit="return confirm('Xoá vĩnh viễn ${h(p.code)} và toàn bộ dữ liệu?')">
           <input type="hidden" name="csrf" value="${h(csrf)}"><input type="hidden" name="id" value="${p.id}">
