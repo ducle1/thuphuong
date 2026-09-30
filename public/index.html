@@ -1,0 +1,142 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<title>Reading Study</title>
+<link rel="stylesheet" href="/assets/style.css?v=4">
+</head>
+<body>
+<div id="progress" hidden><div id="progress-bar"></div></div>
+
+<main>
+
+  <!-- Loading -->
+  <section class="screen active" id="s-loading">
+    <p class="muted">Loading…</p>
+  </section>
+
+  <!-- 1. Welcome -->
+  <section class="screen" id="s-welcome">
+    <div class="card">
+      <h1>Reading Study</h1>
+      <p>Thank you for taking part. In this study you will read a series of short English sentences, one word at a time, at your own natural pace.</p>
+      <p>The study takes about <strong>10–15 minutes</strong>. Please complete it in one sitting, in a quiet place, using a computer with a keyboard.</p>
+      <p>If you close the page by accident, simply open the same link again in the same browser and you will continue where you left off.</p>
+      <div id="kbd-warning" class="notice" hidden>
+        This study requires a physical keyboard (you will use the <kbd>Space</kbd> bar).
+        Please open this link on a laptop or desktop computer.
+      </div>
+      <div class="actions"><button class="btn primary" id="btn-welcome">Continue</button></div>
+    </div>
+  </section>
+
+  <!-- 2. Demographics -->
+  <section class="screen" id="s-demo">
+    <div class="card">
+      <h1>About you</h1>
+      <p class="muted">These questions are optional. You may skip them.</p>
+      <form id="demo-form" autocomplete="off" novalidate>
+        <label class="field">
+          <span>Age</span>
+          <input type="number" name="age" min="1" max="120" inputmode="numeric" placeholder="e.g. 25">
+        </label>
+        <label class="field">
+          <span>Country of residence</span>
+          <select name="country" id="f-country"></select>
+        </label>
+        <label class="field" id="state-field">
+          <span id="state-label">State</span>
+          <select name="state_select" id="f-state-select"></select>
+          <input type="text" name="state_text" id="f-state-text" placeholder="State / province / region" hidden>
+        </label>
+        <label class="field">
+          <span>City</span>
+          <input type="text" name="city" maxlength="120" placeholder="e.g. Austin">
+        </label>
+        <div class="actions">
+          <button type="button" class="btn ghost" id="btn-skip">Skip</button>
+          <button type="submit" class="btn primary">Continue</button>
+        </div>
+      </form>
+    </div>
+  </section>
+
+  <!-- 3. Instructions -->
+  <section class="screen" id="s-instructions">
+    <div class="card">
+      <h1>Instructions</h1>
+      <ol class="steps">
+        <li>Each sentence first appears as a row of blank lines, one line per word. Every time you press the <kbd>Space</kbd> bar, the next word is shown and the previous one disappears.</li>
+        <li>Read at your normal pace, and make sure you understand each word before moving on.</li>
+        <li>After some sentences, a <strong>Yes / No</strong> question about the sentence you just read will appear. Click the answer (or press <kbd>Y</kbd> / <kbd>N</kbd>).</li>
+      </ol>
+      <p class="demo-line" aria-hidden="true"><span class="w">The</span> <span class="w masked">quick</span> <span class="w masked">brown</span> <span class="w masked">fox.</span></p>
+      <p class="press">Press <kbd>Space</kbd> to begin</p>
+    </div>
+  </section>
+
+  <!-- Resume -->
+  <section class="screen" id="s-resume">
+    <div class="card">
+      <h1>Welcome back</h1>
+      <p>You will continue where you left off (<span id="resume-pos"></span>).</p>
+      <p class="muted">If you were in the middle of a sentence, it will start again from the beginning.</p>
+      <p class="press">Press <kbd>Space</kbd> to continue</p>
+    </div>
+  </section>
+
+  <!-- 4. Reading trial -->
+  <section class="screen" id="s-trial">
+    <div id="sentence" class="sentence" aria-live="off"></div>
+    <p class="hint" id="trial-hint">Press <kbd>Space</kbd> to reveal the next word</p>
+  </section>
+
+  <!-- 5. Attention question -->
+  <section class="screen" id="s-question">
+    <div class="card center">
+      <p class="q-text" id="q-text"></p>
+      <div class="actions center">
+        <button class="btn answer" data-answer="yes">Yes</button>
+        <button class="btn answer" data-answer="no">No</button>
+      </div>
+      <p class="muted small">Click an answer or press <kbd>Y</kbd> / <kbd>N</kbd></p>
+    </div>
+  </section>
+
+  <!-- Saving / error -->
+  <section class="screen" id="s-error">
+    <div class="card center">
+      <h1>Connection problem</h1>
+      <p id="err-msg">Your last answer could not be saved.</p>
+      <div class="actions center"><button class="btn primary" id="btn-retry">Try again</button></div>
+    </div>
+  </section>
+
+  <!-- 6. Done -->
+  <section class="screen" id="s-done">
+    <div class="card center">
+      <h1>Thank you!</h1>
+      <p>You have completed the study.</p>
+      <p>Your completion code:</p>
+      <p class="code" id="done-code"></p>
+      <div class="actions center" id="done-actions" hidden>
+        <a class="btn primary" id="done-link" href="#">Return to finish</a>
+      </div>
+    </div>
+  </section>
+
+  <!-- Full -->
+  <section class="screen" id="s-full">
+    <div class="card center">
+      <h1>Study is full</h1>
+      <p>Thank you for your interest. We have already reached the number of participants needed.</p>
+    </div>
+  </section>
+
+</main>
+
+<script src="/assets/app.js?v=4"></script>
+</body>
+</html>

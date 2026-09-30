@@ -1,0 +1,13 @@
+{
+  "name": "spr-experiment",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "node scripts/build-stimuli.mjs",
+    "dev": "node scripts/build-stimuli.mjs && node dev-server.js"
+  },
+  "dependencies": {
+    "pg": "^8.23.0"
+  }
+}
