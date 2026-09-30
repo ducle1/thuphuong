@@ -4,7 +4,7 @@ import {
   parseUrl, parseCookies, setCookie, readBody, sendHtml, redirect, sendDownload,
   h, sign, safeEqual, fmtLocal, durationStr, toIso,
 } from '../lib/http.js';
-import { groupCounts, chooseGroup, splitWords } from '../lib/experiment.js';
+import { groupCounts, chooseGroup, splitWords, DEVICES } from '../lib/experiment.js';
 
 const ADMIN_COOKIE = 'spr_admin';
 const ADMIN_HOURS = 12;
@@ -81,7 +81,7 @@ export default async function handler(req, res) {
       if (body.do === 'reset_one') {
         // Giữ ID/cookie, xoá bài làm → người này làm lại từ đầu (chia nhóm lại)
         await q('DELETE FROM trials WHERE participant_id = $1', [id]);
-        await q(`UPDATE participants SET grp = NULL, assign_seq = NULL, status = 'new', demo_status = NULL,
+        await q(`UPDATE participants SET grp = NULL, device = NULL, assign_seq = NULL, status = 'new', demo_status = NULL,
                    age = NULL, city = NULL, state = NULL, country = NULL, assigned_at = NULL, completed_at = NULL
                  WHERE id = $1`, [id]);
         return redirect(res, `/admin?view=p&id=${id}`);
@@ -188,7 +188,8 @@ const ACC_JOIN = `
 
 async function viewHome(url, csrf) {
   const c = await groupCounts();
-  const next = await chooseGroup();
+  const byDev = {};
+  for (const d of DEVICES) byDev[d] = { c: await groupCounts(null, d), next: await chooseGroup(null, d) };
   const target = config.targetPerGroup;
   const diff = Math.abs(c.A.completed - c.B.completed);
   const newCount = (await q1("SELECT COUNT(*)::int AS n FROM participants WHERE status = 'new'")).n;
@@ -200,7 +201,7 @@ async function viewHome(url, csrf) {
   const args = [];
   const cutoff = () => { args.push(config.abandonMinutes); return `now() - make_interval(mins => $${args.length})`; };
   if (fg) { args.push(fg); where.push(`p.grp = $${args.length}`); }
-  if (fd) { args.push(fd); where.push(`p.input_mode = $${args.length}`); }
+  if (fd) { args.push(fd); where.push(`COALESCE(p.device, p.input_mode) = $${args.length}`); }
   switch (fs) {
     case 'completed': where.push("p.status = 'completed' AND p.excluded = 0"); break;
     case 'active': where.push(`p.status = 'in_progress' AND p.last_seen_at >= ${cutoff()}`); break;
@@ -231,7 +232,7 @@ async function viewHome(url, csrf) {
     return `<tr onclick="location.href='/admin?view=p&id=${p.id}'">
       <td><a href="/admin?view=p&id=${p.id}" class="mono">${h(p.code)}</a>${p.external_id ? `<div class="tiny">${h(p.external_id)}</div>` : ''}</td>
       <td>${badge(p.grp)}</td>
-      <td>${deviceBadge(p.input_mode)}</td>
+      <td>${deviceBadge(p.device || p.input_mode, p.input_mode)}</td>
       <td><span class="st ${sc}">${sl}</span>${p.excluded ? ' <span class="st bad">Đã loại</span>' : ''}</td>
       <td class="r">${p.total ? `${p.done}/${p.total}` : '—'}</td>
       <td class="r"><span class="pct ${pctClass(pct)}">${pct === null ? '—' : pct + '%'}</span>${p.answered ? `<div class="tiny">${p.correct}/${p.answered}</div>` : ''}</td>
@@ -251,11 +252,32 @@ async function viewHome(url, csrf) {
       <div class="panel">
         <div class="lbl">Chênh lệch hoàn thành A–B</div>
         <div class="big ${diff <= 1 ? 'ok-t' : 'warn-t'}">${diff}</div>
-        <div class="sub">Người tiếp theo sẽ vào: <b>${next ? 'Nhóm ' + next : 'đã đủ người'}</b></div>
+        <div class="sub">Người tiếp theo sẽ vào: ${DEVICES.map((d) => `${DEV_LABEL[d]} → <b>${byDev[d].next ? 'Nhóm ' + byDev[d].next : 'đã đủ'}</b>`).join(' · ')}</div>
         <div class="sub">Mới vào, chưa bắt đầu: <b>${newCount}</b></div>
       </div>
     </section>
-    <p class="note">Cân bằng nhóm: người mới được đưa vào nhóm có (hoàn thành + đang làm) ít hơn. Người im lặng quá ${config.abandonMinutes} phút bị coi là bỏ dở và nhường chỗ; người bị <em>loại</em> không được tính.</p>
+
+    <h2>Cân bằng theo thiết bị</h2>
+    <div class="table-wrap"><table class="list compact dev-balance">
+      <thead><tr>
+        <th>Thiết bị</th>
+        <th class="r">Nhóm A · hoàn thành</th><th class="r">đang làm</th>
+        <th class="r">Nhóm B · hoàn thành</th><th class="r">đang làm</th>
+        <th class="r">Chênh lệch</th><th>Người tiếp theo</th>
+      </tr></thead>
+      <tbody>${DEVICES.map((d) => {
+        const x = byDev[d].c;
+        const dd = Math.abs(x.A.completed - x.B.completed);
+        return `<tr class="static">
+          <td>${deviceBadge(d)}</td>
+          <td class="r mono"><b>${x.A.completed}</b></td><td class="r muted">${x.A.active}</td>
+          <td class="r mono"><b>${x.B.completed}</b></td><td class="r muted">${x.B.active}</td>
+          <td class="r"><span class="pct ${dd <= 1 ? 'ok' : 'warn'}">${dd}</span></td>
+          <td>${byDev[d].next ? badge(byDev[d].next, true) : '<span class="muted">đã đủ</span>'}</td>
+        </tr>`;
+      }).join('')}</tbody>
+    </table></div>
+    <p class="note">Nhóm A/B được cân bằng <b>riêng cho từng thiết bị</b>: người dùng máy tính chia đều A/B với nhau, người dùng điện thoại cũng vậy; khi hoà thì ưu tiên giữ cả tổng A/B cân bằng. Trong mỗi thiết bị, người mới vào nhóm có (hoàn thành + đang làm) ít hơn. Người im lặng quá ${config.abandonMinutes} phút bị coi là bỏ dở và nhường chỗ; người bị <em>loại</em> không được tính.</p>
 
     ${await typeSummary(fd)}
 
@@ -297,7 +319,7 @@ async function typeSummary(device = '') {
   const rows = await q(`SELECT t.env_type, t.type_order, p.grp, t.rts
     FROM trials t JOIN participants p ON p.id = t.participant_id
     WHERE p.status = 'completed' AND p.excluded = 0 AND t.rts IS NOT NULL
-      ${device ? 'AND p.input_mode = $1' : ''}`, device ? [device] : []);
+      ${device ? 'AND COALESCE(p.device, p.input_mode) = $1' : ''}`, device ? [device] : []);
   if (!rows.length) return '';
   const agg = new Map();
   for (const r of rows) {
@@ -404,7 +426,7 @@ async function viewParticipant(id, csrf) {
         <p class="meta tiny">Vào lần đầu: ${h(fmtLocal(p.created_at))} · Bắt đầu: ${h(fmtLocal(p.assigned_at) || '—')} ·
           Hoàn thành: ${h(fmtLocal(p.completed_at) || '—')} · Thời gian làm: ${h(durationStr(p.assigned_at, p.completed_at) || '—')}
           ${p.external_id ? ` · External ID: <b>${h(p.external_id)}</b>` : ''}
- · Thiết bị: ${deviceBadge(p.input_mode)}
+ · Thiết bị: ${deviceBadge(p.device || p.input_mode, p.input_mode)}
           <br>Màn hình: ${h(p.screen ?? '')} · ${h(String(p.user_agent || '').slice(0, 140))}</p>
       </div>
       <div class="p-actions">
@@ -441,10 +463,14 @@ async function viewParticipant(id, csrf) {
     ${trials.length ? '' : '<p class="muted">Người này chưa bắt đầu phần đọc nên chưa được chia nhóm.</p>'}`, csrf);
 }
 
-function deviceBadge(m) {
-  if (m === 'touch') return '<span class="st dev">Điện thoại</span>';
-  if (m === 'keyboard') return '<span class="st mute">Máy tính</span>';
-  if (m === 'mixed') return '<span class="st warn" title="Đổi thiết bị giữa chừng">Cả hai</span>';
+const DEV_LABEL = { keyboard: 'Máy tính', touch: 'Điện thoại' };
+
+/** device = thiết bị lúc chia nhóm; input = thiết bị thực dùng (có thể là 'mixed'). */
+function deviceBadge(device, input = null) {
+  const mixed = input === 'mixed' ? ' <span class="st warn" title="Đổi thiết bị giữa chừng">đổi thiết bị</span>' : '';
+  if (device === 'touch') return '<span class="st dev">Điện thoại</span>' + mixed;
+  if (device === 'keyboard') return '<span class="st mute">Máy tính</span>' + mixed;
+  if (device === 'mixed') return '<span class="st warn" title="Đổi thiết bị giữa chừng">Cả hai</span>';
   return '<span class="muted">—</span>';
 }
 
@@ -464,8 +490,8 @@ async function exportCsv(req, res, kind) {
   if (!names[kind]) return sendHtml(res, 400, 'Loại export không hợp lệ');
   const stamp = new Date().toISOString().slice(0, 19).replace(/[-:T]/g, '').replace(/^(\d{8})/, '$1_');
   const filename = `${names[kind]}_${stamp}.csv`;
-  const pcols = ['participant', 'group', 'input_mode', 'status', 'excluded', 'age', 'city', 'state', 'country', 'external_id'];
-  const pvals = (p) => [p.code, p.grp, p.input_mode, p.status, p.excluded, p.age, p.city, p.state, p.country, p.external_id];
+  const pcols = ['participant', 'group', 'device', 'input_mode', 'status', 'excluded', 'age', 'city', 'state', 'country', 'external_id'];
+  const pvals = (p) => [p.code, p.grp, p.device, p.input_mode, p.status, p.excluded, p.age, p.city, p.state, p.country, p.external_id];
   let out = '﻿';
 
   if (kind === 'participants') {
@@ -492,7 +518,7 @@ async function exportCsv(req, res, kind) {
     return sendDownload(req, res, filename, 'text/csv; charset=utf-8', out);
   }
 
-  const rows = await q(`SELECT t.*, p.code, p.grp, p.input_mode, p.status, p.excluded, p.age, p.city, p.state, p.country, p.external_id
+  const rows = await q(`SELECT t.*, p.code, p.grp, p.device, p.input_mode, p.status, p.excluded, p.age, p.city, p.state, p.country, p.external_id
     FROM trials t JOIN participants p ON p.id = t.participant_id
     ORDER BY p.id, t.type_order, t.item_order`);
   const tcols = ['env_type', 'item_id', 'is_filler', 'presentation_order', 'sentence'];

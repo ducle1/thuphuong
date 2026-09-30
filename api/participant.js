@@ -62,7 +62,8 @@ export default async function handler(req, res) {
         const input = body.input === 'touch' ? 'touch' : body.input === 'keyboard' ? 'keyboard' : null;
         if (input) await q('UPDATE participants SET input_mode = COALESCE(input_mode, $1) WHERE id = $2', [input, p.id]);
         if (p.status === 'new') {
-          const g = await assignParticipant(p.id);
+          const device = input || (p.input_mode === 'touch' ? 'touch' : 'keyboard');
+          const g = await assignParticipant(p.id, device);
           if (g === null) return sendJson(res, 200, { ok: true, status: 'full' });
         }
         return sendJson(res, 200, await participantState(await reload(p.id)));
