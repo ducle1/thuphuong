@@ -127,7 +127,7 @@ function layout(title, loggedIn, content, csrf = '') {
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="robots" content="noindex">
 <title>${h(title)} · SPR Admin</title>
-<link rel="stylesheet" href="/assets/admin.css?v=5">
+<link rel="stylesheet" href="/assets/admin.css?v=6">
 </head>
 <body>
 ${loggedIn ? `<header class="top">
@@ -195,10 +195,12 @@ async function viewHome(url, csrf) {
 
   const fg = ['A', 'B'].includes(url.searchParams.get('g')) ? url.searchParams.get('g') : '';
   let fs = url.searchParams.get('s') || '';
+  const fd = ['touch', 'keyboard'].includes(url.searchParams.get('d')) ? url.searchParams.get('d') : '';
   const where = [];
   const args = [];
   const cutoff = () => { args.push(config.abandonMinutes); return `now() - make_interval(mins => $${args.length})`; };
   if (fg) { args.push(fg); where.push(`p.grp = $${args.length}`); }
+  if (fd) { args.push(fd); where.push(`p.input_mode = $${args.length}`); }
   switch (fs) {
     case 'completed': where.push("p.status = 'completed' AND p.excluded = 0"); break;
     case 'active': where.push(`p.status = 'in_progress' AND p.last_seen_at >= ${cutoff()}`); break;
@@ -229,6 +231,7 @@ async function viewHome(url, csrf) {
     return `<tr onclick="location.href='/admin?view=p&id=${p.id}'">
       <td><a href="/admin?view=p&id=${p.id}" class="mono">${h(p.code)}</a>${p.external_id ? `<div class="tiny">${h(p.external_id)}</div>` : ''}</td>
       <td>${badge(p.grp)}</td>
+      <td>${deviceBadge(p.input_mode)}</td>
       <td><span class="st ${sc}">${sl}</span>${p.excluded ? ' <span class="st bad">Đã loại</span>' : ''}</td>
       <td class="r">${p.total ? `${p.done}/${p.total}` : '—'}</td>
       <td class="r"><span class="pct ${pctClass(pct)}">${pct === null ? '—' : pct + '%'}</span>${p.answered ? `<div class="tiny">${p.correct}/${p.answered}</div>` : ''}</td>
@@ -254,12 +257,15 @@ async function viewHome(url, csrf) {
     </section>
     <p class="note">Cân bằng nhóm: người mới được đưa vào nhóm có (hoàn thành + đang làm) ít hơn. Người im lặng quá ${config.abandonMinutes} phút bị coi là bỏ dở và nhường chỗ; người bị <em>loại</em> không được tính.</p>
 
-    ${await typeSummary()}
+    ${await typeSummary(fd)}
 
     <h2>Người tham gia</h2>
     <form class="filters" method="get" action="/admin">
       <select name="g" onchange="this.form.submit()">
         ${opt('', 'Tất cả nhóm', fg)}${opt('A', 'Nhóm A', fg)}${opt('B', 'Nhóm B', fg)}
+      </select>
+      <select name="d" onchange="this.form.submit()">
+        ${opt('', 'Mọi thiết bị', fd)}${opt('keyboard', 'Máy tính (bàn phím)', fd)}${opt('touch', 'Điện thoại (cảm ứng)', fd)}
       </select>
       <select name="s" onchange="this.form.submit()">
         ${opt('', 'Tất cả trạng thái', fs)}${opt('completed', 'Hoàn thành', fs)}${opt('active', 'Đang làm', fs)}${opt('abandoned', 'Bỏ dở', fs)}${opt('new', 'Chưa bắt đầu', fs)}${opt('excluded', 'Đã loại', fs)}
@@ -269,10 +275,10 @@ async function viewHome(url, csrf) {
     <div class="table-wrap">
     <table class="list">
       <thead><tr>
-        <th>ID</th><th>Nhóm</th><th>Trạng thái</th><th class="r">Tiến độ</th><th class="r">% đúng</th>
+        <th>ID</th><th>Nhóm</th><th>Thiết bị</th><th>Trạng thái</th><th class="r">Tiến độ</th><th class="r">% đúng</th>
         <th class="r">Tuổi</th><th>Thành phố</th><th>Bang</th><th>Quốc gia</th><th>Bắt đầu</th><th class="r">Thời gian</th>
       </tr></thead>
-      <tbody>${trs || '<tr><td colspan="11" class="empty">Chưa có dữ liệu.</td></tr>'}</tbody>
+      <tbody>${trs || '<tr><td colspan="12" class="empty">Chưa có dữ liệu.</td></tr>'}</tbody>
     </table>
     </div>
 
@@ -287,10 +293,11 @@ async function viewHome(url, csrf) {
     </div>`, csrf);
 }
 
-async function typeSummary() {
+async function typeSummary(device = '') {
   const rows = await q(`SELECT t.env_type, t.type_order, p.grp, t.rts
     FROM trials t JOIN participants p ON p.id = t.participant_id
-    WHERE p.status = 'completed' AND p.excluded = 0 AND t.rts IS NOT NULL`);
+    WHERE p.status = 'completed' AND p.excluded = 0 AND t.rts IS NOT NULL
+      ${device ? 'AND p.input_mode = $1' : ''}`, device ? [device] : []);
   if (!rows.length) return '';
   const agg = new Map();
   for (const r of rows) {
@@ -307,7 +314,7 @@ async function typeSummary() {
         ${['A', 'B'].map((g) => `<td class="r mono">${a[g].n ? fmtN(a[g].sum / a[g].n) : '—'}</td><td class="r muted">${a[g].s}</td>`).join('')}
       </tr>`).join('')}</tbody>
     </table></div>
-    <p class="note">Trung bình thời gian đọc mỗi từ, chỉ tính người đã hoàn thành và chưa bị loại.</p>`;
+    <p class="note">Trung bình thời gian đọc mỗi từ, chỉ tính người đã hoàn thành và chưa bị loại${device ? ` — <b>chỉ ${device === 'touch' ? 'điện thoại' : 'máy tính'}</b> (theo bộ lọc Thiết bị bên dưới)` : ''}. Nên xem riêng điện thoại và máy tính vì chạm màn hình và bấm phím cho thời gian khác nhau.</p>`;
 }
 
 /* ------------------------------------------------------ participant */
@@ -397,7 +404,8 @@ async function viewParticipant(id, csrf) {
         <p class="meta tiny">Vào lần đầu: ${h(fmtLocal(p.created_at))} · Bắt đầu: ${h(fmtLocal(p.assigned_at) || '—')} ·
           Hoàn thành: ${h(fmtLocal(p.completed_at) || '—')} · Thời gian làm: ${h(durationStr(p.assigned_at, p.completed_at) || '—')}
           ${p.external_id ? ` · External ID: <b>${h(p.external_id)}</b>` : ''}
-          <br>Thiết bị: ${h(p.screen ?? '')} · ${h(String(p.user_agent || '').slice(0, 140))}</p>
+ · Thiết bị: ${deviceBadge(p.input_mode)}
+          <br>Màn hình: ${h(p.screen ?? '')} · ${h(String(p.user_agent || '').slice(0, 140))}</p>
       </div>
       <div class="p-actions">
         <form method="post" action="/admin" class="inline">
@@ -433,6 +441,13 @@ async function viewParticipant(id, csrf) {
     ${trials.length ? '' : '<p class="muted">Người này chưa bắt đầu phần đọc nên chưa được chia nhóm.</p>'}`, csrf);
 }
 
+function deviceBadge(m) {
+  if (m === 'touch') return '<span class="st dev">Điện thoại</span>';
+  if (m === 'keyboard') return '<span class="st mute">Máy tính</span>';
+  if (m === 'mixed') return '<span class="st warn" title="Đổi thiết bị giữa chừng">Cả hai</span>';
+  return '<span class="muted">—</span>';
+}
+
 const cap = (s) => (s ? s[0].toUpperCase() + s.slice(1) : '');
 
 /* ---------------------------------------------------------- export */
@@ -449,8 +464,8 @@ async function exportCsv(req, res, kind) {
   if (!names[kind]) return sendHtml(res, 400, 'Loại export không hợp lệ');
   const stamp = new Date().toISOString().slice(0, 19).replace(/[-:T]/g, '').replace(/^(\d{8})/, '$1_');
   const filename = `${names[kind]}_${stamp}.csv`;
-  const pcols = ['participant', 'group', 'status', 'excluded', 'age', 'city', 'state', 'country', 'external_id'];
-  const pvals = (p) => [p.code, p.grp, p.status, p.excluded, p.age, p.city, p.state, p.country, p.external_id];
+  const pcols = ['participant', 'group', 'input_mode', 'status', 'excluded', 'age', 'city', 'state', 'country', 'external_id'];
+  const pvals = (p) => [p.code, p.grp, p.input_mode, p.status, p.excluded, p.age, p.city, p.state, p.country, p.external_id];
   let out = '﻿';
 
   if (kind === 'participants') {
@@ -477,7 +492,7 @@ async function exportCsv(req, res, kind) {
     return sendDownload(req, res, filename, 'text/csv; charset=utf-8', out);
   }
 
-  const rows = await q(`SELECT t.*, p.code, p.grp, p.status, p.excluded, p.age, p.city, p.state, p.country, p.external_id
+  const rows = await q(`SELECT t.*, p.code, p.grp, p.input_mode, p.status, p.excluded, p.age, p.city, p.state, p.country, p.external_id
     FROM trials t JOIN participants p ON p.id = t.participant_id
     ORDER BY p.id, t.type_order, t.item_order`);
   const tcols = ['env_type', 'item_id', 'is_filler', 'presentation_order', 'sentence'];

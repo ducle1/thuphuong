@@ -59,6 +59,8 @@ export default async function handler(req, res) {
 
       case 'start': {
         if (!isPost) return sendJson(res, 405, { ok: false });
+        const input = body.input === 'touch' ? 'touch' : body.input === 'keyboard' ? 'keyboard' : null;
+        if (input) await q('UPDATE participants SET input_mode = COALESCE(input_mode, $1) WHERE id = $2', [input, p.id]);
         if (p.status === 'new') {
           const g = await assignParticipant(p.id);
           if (g === null) return sendJson(res, 200, { ok: true, status: 'full' });
@@ -107,6 +109,11 @@ export default async function handler(req, res) {
         [JSON.stringify(rts), answer, isCorrect, answerRt, hidden, t.id]);
         if (!upd.length) return sendJson(res, 200, { ok: true, duplicate: true });
 
+        const input = body.input === 'touch' ? 'touch' : body.input === 'keyboard' ? 'keyboard' : null;
+        if (input && p.input_mode !== input && p.input_mode !== 'mixed') {
+          // đổi thiết bị giữa chừng → đánh dấu "mixed"
+          await q(`UPDATE participants SET input_mode = CASE WHEN input_mode IS NULL THEN $1 ELSE 'mixed' END WHERE id = $2`, [input, p.id]);
+        }
         const finished = (await nextPosition(p.id)) === null;
         if (finished) {
           await q("UPDATE participants SET status = 'completed', completed_at = now() WHERE id = $1 AND status <> 'completed'", [p.id]);

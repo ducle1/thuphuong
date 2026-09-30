@@ -67,6 +67,12 @@
     return touch && !fine;
   }
 
+  // Điện thoại / máy tính bảng không có bàn phím → chạm màn hình thay cho phím Space
+  const TOUCH = isTouchOnly();
+  const INPUT = TOUCH ? 'touch' : 'keyboard';
+  const ANSWER_LOCK_MS = 400;   // chống cú chạm cuối câu "rơi" nhầm vào nút Yes/No
+  document.body.classList.toggle('touch', TOUCH);
+
   /* ------------------------------------------------------------ flow */
 
   async function load() {
@@ -99,7 +105,7 @@
 
   function showWelcome() {
     mode = 'welcome';
-    const blocked = S.require_keyboard !== false && isTouchOnly();
+    const blocked = S.require_keyboard === true && TOUCH;
     $('#kbd-warning').hidden = !blocked;
     $('#btn-welcome').disabled = blocked;
     show('s-welcome');
@@ -126,7 +132,7 @@
     let r = null;
     for (let attempt = 0; attempt < 4; attempt++) {
       try {
-        r = await api('start', {});
+        r = await api('start', { input: INPUT });
         if (r.status < 500) break;
       } catch (_) { r = null; }
       await sleep(500 * (attempt + 1));
@@ -209,6 +215,9 @@
     if (cur.trial.question) {
       mode = 'question';
       $('#q-text').textContent = cur.trial.question;
+      const qs = $('#s-question');
+      qs.classList.add('locked');
+      setTimeout(() => qs.classList.remove('locked'), ANSWER_LOCK_MS);
       show('s-question');
       cur.qOnset = performance.now();
     } else {
@@ -216,8 +225,9 @@
     }
   }
 
-  function answer(ans, t) {
+  function answer(ans, t, viaPointer = false) {
     if (mode !== 'question') return;
+    if (viaPointer && t - cur.qOnset < ANSWER_LOCK_MS) return;
     cur.answer = ans;
     cur.answerRt = Math.max(0, t - cur.qOnset);
     show('s-trial');
@@ -235,6 +245,7 @@
       answer: cur.answer,
       answer_rt: cur.answerRt === null ? null : Math.round(cur.answerRt),
       hidden: cur.hidden,
+      input: INPUT,
     };
     let r = null;
     for (let attempt = 0; attempt < 4; attempt++) {
@@ -313,8 +324,18 @@
   }, true);
 
   document.querySelectorAll('.btn.answer').forEach((b) => {
-    b.addEventListener('click', (e) => answer(b.dataset.answer, eventTime(e)));
+    b.addEventListener('click', (e) => answer(b.dataset.answer, eventTime(e), true));
   });
+
+  // Cảm ứng: chạm bất kỳ đâu trên màn hình đọc = bấm Space (pointerdown: phản hồi ngay, không trễ 300 ms)
+  $('#s-trial').addEventListener('pointerdown', (e) => {
+    if (!TOUCH || !e.isPrimary) return;
+    if (mode !== 'mask' && mode !== 'reading') return;
+    e.preventDefault();
+    onSpace(eventTime(e));
+  });
+  $('#btn-begin').addEventListener('click', () => { if (mode === 'instructions') startExperiment(); });
+  $('#btn-resume').addEventListener('click', () => { if (mode === 'resume') nextTrial(); });
 
   function markAway() {
     if (!away && cur && ['mask', 'reading', 'question'].includes(mode)) cur.hidden++;

@@ -118,3 +118,17 @@ td.q { overflow-wrap: anywhere; }
 .danger-zone p { margin: 0 0 12px; }
 .danger-zone form { display: flex; gap: 8px; flex-wrap: wrap; }
 .danger-zone input { font: inherit; padding: 8px 10px; border: 1px solid #cfcfc9; border-radius: 7px; min-width: 220px; }
+
+.st.dev { background: #efe7fb; color: #5b3a9a; }
+
+@media (max-width: 720px) {
+  .top { height: auto; min-height: 52px; flex-wrap: wrap; padding: 8px 12px; gap: 6px; }
+  .top nav { gap: 12px; flex-wrap: wrap; font-size: 13px; }
+  .dd-menu { right: auto; left: 0; }
+  .wrap { padding: 14px 10px 40px; }
+  h1 { font-size: 19px; }
+  .big { font-size: 28px; }
+  .filters { flex-wrap: wrap; }
+  .p-actions { flex-wrap: wrap; }
+  .danger-zone input { min-width: 0; flex: 1; }
+}

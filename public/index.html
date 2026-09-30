@@ -2,10 +2,11 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#f6f6f4">
 <meta name="robots" content="noindex">
 <title>Reading Study</title>
-<link rel="stylesheet" href="/assets/style.css?v=4">
+<link rel="stylesheet" href="/assets/style.css?v=5">
 </head>
 <body>
 <div id="progress" hidden><div id="progress-bar"></div></div>
@@ -22,7 +23,8 @@
     <div class="card">
       <h1>Reading Study</h1>
       <p>Thank you for taking part. In this study you will read a series of short English sentences, one word at a time, at your own natural pace.</p>
-      <p>The study takes about <strong>10–15 minutes</strong>. Please complete it in one sitting, in a quiet place, using a computer with a keyboard.</p>
+      <p>The study takes about <strong>10–15 minutes</strong>. Please complete it in one sitting, in a quiet place.</p>
+      <p class="t-only muted">On a phone, please hold it upright (portrait) and keep this page open until the end.</p>
       <p>If you close the page by accident, simply open the same link again in the same browser and you will continue where you left off.</p>
       <div id="kbd-warning" class="notice" hidden>
         This study requires a physical keyboard (you will use the <kbd>Space</kbd> bar).
@@ -68,12 +70,13 @@
     <div class="card">
       <h1>Instructions</h1>
       <ol class="steps">
-        <li>Each sentence first appears as a row of blank lines, one line per word. Every time you press the <kbd>Space</kbd> bar, the next word is shown and the previous one disappears.</li>
+        <li>Each sentence first appears as a row of blank lines, one line per word. Every time you <span class="k-only">press the <kbd>Space</kbd> bar</span><span class="t-only">tap the screen</span>, the next word is shown and the previous one disappears.</li>
         <li>Read at your normal pace, and make sure you understand each word before moving on.</li>
-        <li>After some sentences, a <strong>Yes / No</strong> question about the sentence you just read will appear. Click the answer (or press <kbd>Y</kbd> / <kbd>N</kbd>).</li>
+        <li>After some sentences, a <strong>Yes / No</strong> question about the sentence you just read will appear. <span class="k-only">Click the answer (or press <kbd>Y</kbd> / <kbd>N</kbd>).</span><span class="t-only">Tap your answer.</span></li>
       </ol>
       <p class="demo-line" aria-hidden="true"><span class="w">The</span> <span class="w masked">quick</span> <span class="w masked">brown</span> <span class="w masked">fox.</span></p>
-      <p class="press">Press <kbd>Space</kbd> to begin</p>
+      <p class="press k-only">Press <kbd>Space</kbd> to begin</p>
+      <div class="actions center t-only"><button class="btn primary big" id="btn-begin">Start</button></div>
     </div>
   </section>
 
@@ -83,14 +86,16 @@
       <h1>Welcome back</h1>
       <p>You will continue where you left off (<span id="resume-pos"></span>).</p>
       <p class="muted">If you were in the middle of a sentence, it will start again from the beginning.</p>
-      <p class="press">Press <kbd>Space</kbd> to continue</p>
+      <p class="press k-only">Press <kbd>Space</kbd> to continue</p>
+      <div class="actions center t-only"><button class="btn primary big" id="btn-resume">Continue</button></div>
     </div>
   </section>
 
   <!-- 4. Reading trial -->
   <section class="screen" id="s-trial">
     <div id="sentence" class="sentence" aria-live="off"></div>
-    <p class="hint" id="trial-hint">Press <kbd>Space</kbd> to reveal the next word</p>
+    <p class="hint" id="trial-hint"><span class="k-only">Press <kbd>Space</kbd> to reveal the next word</span><span class="t-only">Tap anywhere to reveal the next word</span></p>
+    <div class="tap-bar t-only" aria-hidden="true">Tap ›</div>
   </section>
 
   <!-- 5. Attention question -->
@@ -101,7 +106,7 @@
         <button class="btn answer" data-answer="yes">Yes</button>
         <button class="btn answer" data-answer="no">No</button>
       </div>
-      <p class="muted small">Click an answer or press <kbd>Y</kbd> / <kbd>N</kbd></p>
+      <p class="muted small k-only">Click an answer or press <kbd>Y</kbd> / <kbd>N</kbd></p>
     </div>
   </section>
 
@@ -137,6 +142,6 @@
 
 </main>
 
-<script src="/assets/app.js?v=4"></script>
+<script src="/assets/app.js?v=5"></script>
 </body>
 </html>

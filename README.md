@@ -101,7 +101,7 @@ Thay đổi chỉ áp dụng cho người **mới**; ai đã bắt đầu giữ 
 | `ABANDON_MINUTES` | 30 | im lặng quá N phút → coi là bỏ dở, nhường chỗ |
 | `DISPLAY_MODE` | `moving_window` | hoặc `center` |
 | `MAX_CONSECUTIVE_WORD` / `MAX_CONSECUTIVE` | `totally` / 2 | ràng buộc xáo trộn |
-| `REQUIRE_KEYBOARD` | true | chặn thiết bị chỉ có cảm ứng |
+| `REQUIRE_KEYBOARD` | false | `true` = chặn điện thoại/máy tính bảng, chỉ cho làm bằng bàn phím |
 | `COMPLETION_URL` | — | link chuyển về khi xong (vd. Prolific) |
 | `TIMEZONE` | `Asia/Ho_Chi_Minh` | múi giờ hiển thị trong admin |
 | `SESSION_SECRET` | (sinh từ mật khẩu) | chuỗi bí mật ký cookie admin |
@@ -118,6 +118,8 @@ Link có `?PROLIFIC_PID=…` (hoặc `?pid=…`) sẽ được lưu vào cột `
 - **Thời gian mỗi từ** đo ngay trong trình duyệt (`performance.now()`), nên tốc độ mạng hay độ trễ server **không ảnh hưởng** tới số ms.
 - **Thoát giữa chừng** → mở lại link, tiếp tục đúng câu đang dở (đọc lại câu đó từ đầu, admin đánh dấu "đọc lại").
 - **Admin** `/admin`: cân bằng A/B, bảng ms/từ theo Types of environment × nhóm, danh sách người tham gia với % đúng, chi tiết từng người (sắp theo Types of environment, ms dưới từng từ), Loại/Khôi phục/Xoá, xuất CSV (theo từ / theo câu / theo người).
+
+**Điện thoại / máy tính bảng**: tự nhận ra thiết bị chỉ có cảm ứng. Khi đó người tham gia **chạm bất kỳ đâu trên màn hình** thay cho phím Space (màn đọc chiếm toàn màn hình, không cuộn/zoom được); các nút Start/Continue/Yes/No to, dễ bấm. Câu hỏi Yes/No bị khoá 0,4 giây đầu để cú chạm cuối câu không bấm nhầm. Thiết bị được lưu vào cột `input_mode` (`keyboard` / `touch` / `mixed` nếu đổi thiết bị giữa chừng); trang admin có bộ lọc **Thiết bị** và bảng tổng hợp lọc theo thiết bị. Nên phân tích riêng hai nhóm thiết bị, vì thời gian chạm màn hình và bấm phím không so sánh trực tiếp được.
 
 **Lưu ý về Neon gói Free**: database tự "ngủ" khi không ai truy cập một lúc; người đầu tiên vào sau đó có thể chờ thêm khoảng 1 giây ở màn hình Loading. Việc này không ảnh hưởng dữ liệu đo.
 
